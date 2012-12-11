@@ -38,6 +38,7 @@ Usage: `basename $1` [options] <sdk_install_dir> <device>
 Mandatory options:
   --device              SD block device node (e.g /dev/sdd)
   --sdk                 Where is sdk installed ?
+  --rootfs              Where is the TAR.GZ root filesystem file?
 
 Optional options:
   --version             Print version.
@@ -54,6 +55,7 @@ while [ $# -gt 0 ]; do
       ;;
     --device) shift; device=$1; shift; ;;
     --sdk) shift; sdkdir=$1; shift; ;;
+    --rootfs) shift; rootfs=$1; shift; ;;
     --version) version $0;;
     *) copy="$copy $1"; shift;;
   esac
@@ -67,8 +69,8 @@ if [ ! -d $sdkdir ]; then
    exit 1;
 fi
 
-if [ ! -f $sdkdir/filesystem/dvsdk-dm368-evm-rootfs.tar.gz ]; then
-  echo "ERROR: failed to find rootfs $sdkdir/filesystem/dvsdk-dm368-evm-rootfs.tar.gz"
+if [ ! -f $rootfs ]; then
+  echo "ERROR: failed to find rootfs $rootfs"
   exit 1;
 fi
  
@@ -130,10 +132,10 @@ if [ $? -ne 0 ]; then
     exit 1;
 fi
 
-echo "Formating ${device}1 ..."
-execute "mkfs.vfat -F 32 -n "BOOT" ${device}1"
-echo "Formating ${device}2 ..."
-execute "mke2fs -j -L "ROOTFS" ${device}2"
+echo "Formating ${device}p1 ..."
+execute "mkfs.vfat -F 32 -n "BOOT" ${device}p1"
+echo "Formating ${device}p2 ..."
+execute "mke2fs -j -L "ROOTFS" ${device}p2"
 if [ "$copy" != "" ]; then
   echo "Formating ${device}3 ..."
   execute "mke2fs -j -L "START_HERE" ${device}3"
@@ -157,9 +159,9 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-echo "Copying uImage/boot.scr on ${device}1"
+echo "Copying uImage/boot.scr on ${device}p1"
 execute "mkdir -p /tmp/sdk/$$"
-execute "mount ${device}1 /tmp/sdk/$$"
+execute "mount ${device}p1 /tmp/sdk/$$"
 execute "cp /tmp/sdk/boot.scr /tmp/sdk/$$/"
 execute "cp /tmp/sdk/boot.cmd /tmp/sdk/$$/"
 execute "cp $sdkdir/psp/prebuilt-images/uImage*.bin /tmp/sdk/$$/uImage"
@@ -184,10 +186,10 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-echo "Extracting filesystem on ${device}2 ..."
+echo "Extracting filesystem on ${device}p2 ..."
 execute "mkdir -p /tmp/sdk/$$"
-execute "mount ${device}2 /tmp/sdk/$$"
-execute "tar zxf $sdkdir/filesystem/dvsdk-dm368-evm-rootfs.tar.gz -C /tmp/sdk/$$"
+execute "mount ${device}p2 /tmp/sdk/$$"
+execute "tar zxf $rootfs -C /tmp/sdk/$$"
 
 # check if we need to create symbolic link for matrix 
 echo -n "Creating matrix-gui-e symbolic link..."
@@ -202,7 +204,7 @@ if [ -f /tmp/sdk/$$/etc/init.d/matrix-gui-e ]; then
 fi
 
 sync
-echo "unmounting ${device}2"
+echo "unmounting ${device}p2"
 execute "umount /tmp/sdk/$$"
 
 if [ "$copy" != "" ]; then
