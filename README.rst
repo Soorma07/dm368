@@ -15,7 +15,7 @@ any software updates::
 
  $ sudo su -
  # apt-get update
- # apt-get install clojure jetty groovy fakeroot
+ # apt-get install openjdk-6-jdk fakeroot git-core gitk
  # cd /bin
  # rm sh
  # ln -s bash sh
@@ -34,20 +34,76 @@ Next install the cross-compile toolchain and the DVSDK::
 
 Finally set up the environment::
 
- $ export ${HOME}/ti-dvsdk_dm368-evm_4_02_00_06
- $ echo "export ${HOME}/ti-dvsdk_dm368-evm_4_02_00_06" >> ~/.bashrc
+ $ export DVSDK=${HOME}/ti-dvsdk_dm368-evm_4_02_00_06
+ $ echo "export DVSDK=${HOME}/ti-dvsdk_dm368-evm_4_02_00_06" >> ~/.bashrc
 
 And build the code and write the SD card::
 
  $ cd ${DVSDK}
  $ ./setup.sh
- Accept all defaults except the last one, do not go into minicom.
+ Accept all defaults except the last one, do not go into minicom. That question
+ asks "Would you like to run the setup script now (y/n)?"
  $ make clean components
  $ sudo ${DVSDK}/bin/mksdboot.sh --device /dev/sdX --sdk ${DVSDK}
 
 where /dev/sdX is the SD card. You should be able to use the SD card now to
 boot the board, and any changes like the helloworld.c example should
 theoretically work.
+
+Finding the Video Rosetta Stone
+-------------------------------
+
+Look at dvsdk-demos_4_02_00_01/dm365/encode/capture.c, line 369, where frames are
+captured. Then look at line 353 where the CapBuf_blackFill function is called, and
+around line 76 where it's defined. Note the use of the yPtr variable in this
+function. Notice that this function knows how to handle different kinds of video
+buffers with different encoding schemes. I believe THIS is the Rosetta stone that
+is going to unlock the magic of video XY coordinates and video bit stuffing. BTW,
+"CapBuf" means "capture buffer".
+
+Mounting the DVSDK disk at bootup
+---------------------------------
+
+Cultural Learnings of http://www.tldp.org/HOWTO/HighQuality-Apps-HOWTO/boot.html
+for Make Benefit Glorious Nation of DVSDK disk automounter. I wrote this file as
+/etc/init.d/mountdvsdk, and then created a link to it at /etc/rc2.d/S32mountdvsdk.
+The only magic there is that "32" is shortly after "30", where the vboxsf system
+is enabled for runlevel 2.
+
+::
+
+ #!/bin/sh
+ 
+ start() {
+ 	echo "Mounting DVSDK at /opt/DVSDK"
+ 	(cd /opt; mount -t vboxsf DVSDK DVSDK)
+ 	RETVAL=$?
+ }
+ 
+ stop() {
+ 	echo "Unmounting DVSDK"
+ 	(cd /opt; umount DVSDK)
+ 	RETVAL=$?
+ }
+ 
+ RETVAL=0
+ case "$1" in
+ 	start)
+ 		start
+ 		;;
+ 	stop)
+ 		stop
+ 		;;
+ 	restart)
+ 		stop
+ 		start
+ 		;;
+ 	*)
+ 		echo Usage: $0 {start|stop}
+ 		RETVAL=1
+ 		;;
+ esac
+ exit $RETVAL
 
 Making a custom SD card
 -----------------------
